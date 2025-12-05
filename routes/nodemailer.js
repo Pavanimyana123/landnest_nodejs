@@ -1,0 +1,36 @@
+// nodemailer.js
+const nodemailer = require('nodemailer');
+
+// Admin email credentials
+const ADMIN_EMAIL = 'vangalatharun2001@gmail.com';
+const ADMIN_APP_PASSWORD = 'zcja yyad cvgx bsyk';
+
+
+// Create transporter with better configuration
+const transporter = nodemailer.createTransport({
+    service: 'gmail',
+    auth: {
+        user: ADMIN_EMAIL,
+        pass: ADMIN_APP_PASSWORD
+    },
+    tls: {
+        rejectUnauthorized: false
+    },
+    connectionTimeout: 10000,
+    socketTimeout: 10000,
+    greetingTimeout: 10000
+});
+
+// Verify transporter connection
+transporter.verify(function(error, success) {
+    if (error) {
+        console.error('Nodemailer transporter verification failed:', error);
+    } else {
+        console.log('Nodemailer transporter is ready to send emails');
+    }
+});
+
+module.exports = {
+    transporter,
+    ADMIN_EMAIL
+};
