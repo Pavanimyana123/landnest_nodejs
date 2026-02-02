@@ -36,7 +36,8 @@ router.post("/razorpay/orders", async (req, res) => {
 
 // -------------------- VERIFY PAYMENT --------------------
 router.post("/razorpay/verify-payment", (req, res) => {
-  const { razorpay_order_id, razorpay_payment_id, razorpay_signature } = req.body;
+  const { razorpay_order_id, razorpay_payment_id, razorpay_signature } =
+    req.body;
 
   const hmac = crypto.createHmac("sha256", process.env.RAZORPAY_KEY_SECRET);
   hmac.update(razorpay_order_id + "|" + razorpay_payment_id);
@@ -86,7 +87,7 @@ router.post("/razorpay/subscription", async (req, res) => {
       customer_id: req.body.customer_id,
       total_count: req.body.total_count,
       customer_notify: 1,
-      notes: req.body.notes
+      notes: req.body.notes,
     });
 
     res.json({ success: true, subscription });
@@ -94,19 +95,31 @@ router.post("/razorpay/subscription", async (req, res) => {
     console.error("Razorpay Subscription Error:", err);
     res.status(500).json({
       success: false,
-      error: err.error?.description || "Failed to create subscription"
+      error: err.error?.description || "Failed to create subscription",
     });
   }
 });
 
 router.post("/razorpay/verify-subscription-payment", async (req, res) => {
   try {
-    const { razorpay_payment_id, razorpay_subscription_id, razorpay_signature } = req.body;
+    const {
+      razorpay_payment_id,
+      razorpay_subscription_id,
+      razorpay_signature,
+    } = req.body;
 
-    if (!razorpay_payment_id || !razorpay_subscription_id || !razorpay_signature) {
+    console.log("razorpay_payment_id:", razorpay_payment_id);
+    console.log("razorpay_subscription_id:", razorpay_subscription_id);
+    console.log("razorpay_signature:", razorpay_signature);
+
+    if (
+      !razorpay_payment_id ||
+      !razorpay_subscription_id ||
+      !razorpay_signature
+    ) {
       return res.status(400).json({
         success: false,
-        message: "Missing required fields"
+        message: "Missing required fields",
       });
     }
 
@@ -118,7 +131,7 @@ router.post("/razorpay/verify-subscription-payment", async (req, res) => {
     if (generated_signature !== razorpay_signature) {
       return res.status(400).json({
         success: false,
-        message: "Invalid payment signature"
+        message: "Invalid payment signature",
       });
     }
 
@@ -128,7 +141,7 @@ router.post("/razorpay/verify-subscription-payment", async (req, res) => {
     if (paymentDetails.status !== "captured") {
       return res.status(400).json({
         success: false,
-        message: "Payment verification failed. Payment not captured."
+        message: "Payment verification failed. Payment not captured.",
       });
     }
 
@@ -137,16 +150,14 @@ router.post("/razorpay/verify-subscription-payment", async (req, res) => {
       message: "Payment verified successfully",
       payment: paymentDetails,
     });
-
   } catch (err) {
     console.error("Subscription Payment Verification Error:", err);
     res.status(500).json({
       success: false,
       message: "Payment verification error",
-      error: err
+      error: err,
     });
   }
 });
-
 
 module.exports = router;
