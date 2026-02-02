@@ -100,7 +100,7 @@ router.post("/razorpay/subscription", async (req, res) => {
   }
 });
 
-router.post("/razorpay/verify-subscription-payment", async (req, res) => {
+router.post("/razorpay/verify-subscription-payment", (req, res) => {
   try {
     const {
       razorpay_payment_id,
@@ -108,24 +108,9 @@ router.post("/razorpay/verify-subscription-payment", async (req, res) => {
       razorpay_signature,
     } = req.body;
 
-    console.log("razorpay_payment_id:", razorpay_payment_id);
-    console.log("razorpay_subscription_id:", razorpay_subscription_id);
-    console.log("razorpay_signature:", razorpay_signature);
-
-    if (
-      !razorpay_payment_id ||
-      !razorpay_subscription_id ||
-      !razorpay_signature
-    ) {
-      return res.status(400).json({
-        success: false,
-        message: "Missing required fields",
-      });
-    }
-
     const generated_signature = crypto
       .createHmac("sha256", process.env.RAZORPAY_KEY_SECRET)
-      .update(razorpay_payment_id + "|" + razorpay_subscription_id)
+      .update(`${razorpay_payment_id}|${razorpay_subscription_id}`)
       .digest("hex");
 
     if (generated_signature !== razorpay_signature) {
@@ -135,27 +120,17 @@ router.post("/razorpay/verify-subscription-payment", async (req, res) => {
       });
     }
 
-    // ------------ OPTIONAL: Double verify from Razorpay ----------
-    const paymentDetails = await razorpay.payments.fetch(razorpay_payment_id);
-
-    if (paymentDetails.status !== "captured") {
-      return res.status(400).json({
-        success: false,
-        message: "Payment verification failed. Payment not captured.",
-      });
-    }
-
+    // ✅ SUCCESS — payment is authentic
     return res.status(200).json({
       success: true,
-      message: "Payment verified successfully",
-      payment: paymentDetails,
+      message: "Subscription payment verified successfully",
+      status: "AUTHORIZED",
     });
   } catch (err) {
-    console.error("Subscription Payment Verification Error:", err);
-    res.status(500).json({
+    console.error(err);
+    return res.status(500).json({
       success: false,
-      message: "Payment verification error",
-      error: err,
+      message: "Verification error",
     });
   }
 });
