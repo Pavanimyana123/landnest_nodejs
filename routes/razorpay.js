@@ -51,12 +51,60 @@ router.post("/razorpay/verify-payment", (req, res) => {
 });
 
 // -------------------- CREATE CUSTOMER --------------------
+// router.post("/razorpay/customer", async (req, res) => {
+//   try {
+//     const customer = await razorpay.customers.create(req.body);
+//     res.json({ success: true, customer });
+//   } catch (err) {
+//     res.status(500).json({ success: false, error: err.error?.description });
+//   }
+// });
+
+
 router.post("/razorpay/customer", async (req, res) => {
   try {
-    const customer = await razorpay.customers.create(req.body);
-    res.json({ success: true, customer });
+    const { name, email, contact } = req.body;
+
+    // 1️⃣ Fetch customers by email (limit to 100 for safety)
+    const existingCustomers = await razorpay.customers.all({
+      email,
+      count: 100
+    });
+
+    // 2️⃣ Manually check for exact match (name + email + contact)
+    const matchedCustomer = existingCustomers.items.find(c =>
+      c.name === name &&
+      c.email === email &&
+      c.contact === contact
+    );
+
+    if (matchedCustomer) {
+      return res.json({
+        success: true,
+        customer: matchedCustomer,
+        message: "Existing customer returned"
+      });
+    }
+
+    // 3️⃣ If not matched → create new customer
+    const newCustomer = await razorpay.customers.create({
+      name,
+      email,
+      contact
+    });
+
+    return res.json({
+      success: true,
+      customer: newCustomer,
+      message: "New customer created"
+    });
+
   } catch (err) {
-    res.status(500).json({ success: false, error: err.error?.description });
+    console.error("Razorpay error:", err);
+    return res.status(500).json({
+      success: false,
+      error: err.error?.description || "Something went wrong"
+    });
   }
 });
 
