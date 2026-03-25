@@ -60,53 +60,144 @@ router.post("/razorpay/verify-payment", (req, res) => {
 //   }
 // });
 
+const normalizeEmail = (email) => email?.trim().toLowerCase();
 
+const normalizeContact = (contact) =>
+  contact?.toString().replace(/\D/g, "").slice(-10); // last 10 digits
+
+
+// ===============================
+// 📦 FETCH ALL CUSTOMERS (PAGINATION)
+// ===============================
+const getAllCustomers = async () => {
+  let allCustomers = [];
+  let skip = 0;
+  const count = 100;
+  let hasMore = true;
+
+  while (hasMore) {
+    const response = await razorpay.customers.all({ count, skip });
+
+    allCustomers = [...allCustomers, ...response.items];
+
+    if (response.items.length < count) {
+      hasMore = false;
+    } else {
+      skip += count;
+    }
+  }
+
+  return allCustomers;
+};
+
+
+// ===============================
+// 🔍 FIND CUSTOMER (NORMALIZED MATCH)
+// ===============================
+const findCustomer = (customers, email, contact) => {
+  const normalizedEmail = normalizeEmail(email);
+  const normalizedContact = normalizeContact(contact);
+
+  return customers.find((c) => {
+    return (
+      normalizeEmail(c.email) === normalizedEmail &&
+      normalizeContact(c.contact) === normalizedContact
+    );
+  });
+};
+
+
+// ===============================
+// 🚀 CREATE / FETCH CUSTOMER API
+// ===============================
 router.post("/razorpay/customer", async (req, res) => {
   try {
     const { name, email, contact } = req.body;
 
-    // 1️⃣ Fetch customers by email (limit to 100 for safety)
-    const existingCustomers = await razorpay.customers.all({
-      email,
-      count: 100
-    });
-
-    // 2️⃣ Manually check for exact match (name + email + contact)
-    const matchedCustomer = existingCustomers.items.find(c =>
-      c.name === name &&
-      c.email === email &&
-      c.contact === contact
-    );
-
-    if (matchedCustomer) {
-      return res.json({
-        success: true,
-        customer: matchedCustomer,
-        message: "Existing customer returned"
+    if (!email || !contact) {
+      return res.status(400).json({
+        success: false,
+        message: "Email and contact are required",
       });
     }
 
-    // 3️⃣ If not matched → create new customer
-    const newCustomer = await razorpay.customers.create({
-      name,
-      email,
-      contact
-    });
+    // ===============================
+    // 1️⃣ FETCH ALL CUSTOMERS
+    // ===============================
+    const customers = await getAllCustomers();
 
-    return res.json({
-      success: true,
-      customer: newCustomer,
-      message: "New customer created"
-    });
+    // ===============================
+    // 2️⃣ CHECK EXISTING CUSTOMER
+    // ===============================
+    const existingCustomer = findCustomer(customers, email, contact);
+
+    if (existingCustomer) {
+      return res.json({
+        success: true,
+        customer: existingCustomer,
+        message: "Existing customer returned",
+      });
+    }
+
+    // ===============================
+    // 3️⃣ CREATE NEW CUSTOMER
+    // ===============================
+    try {
+      const newCustomer = await razorpay.customers.create({
+        name,
+        email,
+        contact,
+      });
+
+      return res.json({
+        success: true,
+        customer: newCustomer,
+        message: "New customer created",
+      });
+
+    } catch (err) {
+
+      // ===============================
+      // 🔥 DUPLICATE ERROR HANDLING
+      // ===============================
+      if (
+        err?.error?.description?.includes("Customer already exists")
+      ) {
+        console.log("⚠️ Duplicate detected, refetching...");
+
+        const refreshedCustomers = await getAllCustomers();
+
+        const matchedCustomer = findCustomer(
+          refreshedCustomers,
+          email,
+          contact
+        );
+
+        if (matchedCustomer) {
+          return res.json({
+            success: true,
+            customer: matchedCustomer,
+            message: "Customer fetched after duplicate error",
+          });
+        }
+      }
+
+      throw err;
+    }
 
   } catch (err) {
     console.error("Razorpay error:", err);
+
     return res.status(500).json({
       success: false,
-      error: err.error?.description || "Something went wrong"
+      error:
+        err?.error?.description ||
+        err.message ||
+        "Something went wrong",
     });
   }
 });
+
 
 // -------------------- CREATE PLAN --------------------
 router.post("/razorpay/plan", async (req, res) => {
